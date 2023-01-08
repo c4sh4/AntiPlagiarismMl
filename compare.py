@@ -4,7 +4,7 @@ import tokenize
 import token
 import dis
 import argparse
-import time
+import pickle
 
 
 def input_txt(input_path):
@@ -150,13 +150,9 @@ def get_scores(f_list):
     for fc in f_list:
         lexeme_list.append(lexeme_selection(fc))
         bytecode_list.append(bytecode_selection(fc))
-
     sim_list.append(code_similarity(bytecode_list))  # b_dl, b_lcs
-
     sim_list.append(token_column(lexeme_list))  # t_dl, t_lcs
-
     distance = abs(sim_list[0][0] - sim_list[1][1])
-
     if sim_list[0][0] == 0:
         sim_list[0][0] = sim_list[1][1]  # b_dl = t_lcs
     if sim_list[0][1] == 0:
@@ -168,6 +164,11 @@ def get_scores(f_list):
         sim_list.append(lexeme_column(lexeme_list))
     else:
         sim_list.append([sim_list[0][0], sim_list[1][1]])
+    return sim_list
+
+
+def similarity_score(sim_list):
+    """ Code similarity calculation."""
     res = round(((sim_list[0][0] + sim_list[0][1]) / 2 +
                  (sim_list[1][0] + sim_list[1][1]) / 2 +
                  (sim_list[2][0] + sim_list[2][1]) / 2) / 3, 3)
@@ -177,9 +178,9 @@ def get_scores(f_list):
 
 def scores_file(res_list, scores_path):
     """ Fill scores.txt."""
-    with open(str(scores_path), 'w', encoding='utf-8') as score:
+    with open(str(scores_path), 'w', encoding='utf-8') as s_:
         for res_ in res_list:
-            score.write(str(res_) + '\n')
+            s_.write(str(res_) + '\n')
 
 
 def parser():
@@ -187,25 +188,49 @@ def parser():
     pars = argparse.ArgumentParser(description='')
     pars.add_argument('input', type=str, help='Input file with a list of file pairs to check.')
     pars.add_argument('scores', type=str, help='Program text similarity evaluation file.')
+    pars.add_argument('--model', type=str, help='Load a model to compare')
     args = pars.parse_args()
-    source_ = (args.input, args.scores)
+    source_ = (args.input, args.scores, args.model)
     return source_
 
 
+def compare_model(model_, sl_, source_1):
+    """If the model is called,
+       the probability that the second file from the pair is plagiarism
+       will be written to the scores.txt file.
+    """
+    test_compare = []
+    model_res = []
+    for pr, val_pr in enumerate(sl_):
+        test_compare.append([val_pr[0][0], val_pr[0][1],
+                             val_pr[1][0], val_pr[1][1],
+                             val_pr[2][0], val_pr[2][1]])
+    for res in test_compare:
+        pr_prob = model_.predict_proba([res])
+        model_res.append(round(pr_prob[0][1], 3))
+    print('model')
+    scores_file(model_res, source_1)
+
+
 if __name__ == "__main__":
-    start = time.time()
     file_list = []
     score_list = []
+    f_score = []
     source = parser()
     path_list = input_txt(source[0])
-    # path_list = input_txt('input.txt')
+    print(len(path_list))
     for i, path in enumerate(path_list[:-1]):
         if i % 2 == 0:
             pair_file = [get_file(path), get_file(path_list[i + 1])]
             file_list.append(tuple(pair_file))
     for iter_, pair_ in enumerate(file_list):
         score_list.append(get_scores(pair_))
-    scores_file(score_list, source[1])
-    # scores_file(score_list, 'score.txt')
-    end = time.time() - start
-    print('time of evaluation: ', round(end, 3))
+    print(len(score_list))
+    if source[2] is not None:
+        model = pickle.load(open(source[2], 'rb'))
+        compare_model(model, score_list, source[1])
+    else:
+        for score in score_list:
+            f_score.append(similarity_score(score))
+        print(f_score)
+        scores_file(f_score, source[1])
