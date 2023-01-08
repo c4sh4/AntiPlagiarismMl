@@ -208,7 +208,6 @@ def compare_model(model_, sl_, source_1):
     for res in test_compare:
         pr_prob = model_.predict_proba([res])
         model_res.append(round(pr_prob[0][1], 3))
-    print('model')
     scores_file(model_res, source_1)
 
 
@@ -218,19 +217,16 @@ if __name__ == "__main__":
     f_score = []
     source = parser()
     path_list = input_txt(source[0])
-    print(len(path_list))
     for i, path in enumerate(path_list[:-1]):
         if i % 2 == 0:
             pair_file = [get_file(path), get_file(path_list[i + 1])]
             file_list.append(tuple(pair_file))
     for iter_, pair_ in enumerate(file_list):
         score_list.append(get_scores(pair_))
-    print(len(score_list))
     if source[2] is not None:
         model = pickle.load(open(source[2], 'rb'))
         compare_model(model, score_list, source[1])
     else:
         for score in score_list:
             f_score.append(similarity_score(score))
-        print(f_score)
         scores_file(f_score, source[1])
